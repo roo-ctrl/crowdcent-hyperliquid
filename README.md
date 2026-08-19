@@ -1,27 +1,35 @@
 # CrowdCent — Hyperliquid Ranking
 
-Rank ~170 Hyperliquid crypto assets by expected relative return over 10-day and
-30-day horizons. Docs: https://docs.crowdcent.com/
+Every day, [CrowdCent](https://crowdcent.com) asks: out of ~170 crypto assets,
+which will do best and which will do worst over the next 10 and 30 days?
+This repo is a complete, working entry: it pulls the data, trains a model,
+and submits predictions — in three commands.
 
-## One-time setup
+## Setup (once)
 
-1. Create an account at https://crowdcent.com, verify email.
-2. Profile -> **Generate New Key**, paste it into `.env` (`CROWDCENT_API_KEY=...`).
-3. Install deps: `uv sync`
+1. Install [uv](https://docs.astral.sh/uv/), then run `uv sync` in this folder.
+2. Make an account at crowdcent.com, generate an API key on your profile page.
+3. Create a file called `.env` in this folder containing:
+   `CROWDCENT_API_KEY=your_key_here`
 
-## Workflow
+## The three commands
 
 ```bash
-uv run download_data.py      # pulls training + current inference parquet into data/
-uv run train_and_predict.py  # trains LightGBM baseline, writes predictions/predictions.parquet
-uv run submit.py             # uploads (queues if outside the 14:00-18:00 UTC window)
+uv run download_data.py      # 1. get the data
+uv run train_and_predict.py  # 2. train + predict -> predictions/
+uv run submit.py             # 3. send it in
 ```
 
-## Key facts
+That's it. New data drops daily at 14:00 UTC; the submission window closes
+at 18:00 UTC (7–11 AM Pacific). Submissions outside the window queue for
+the next day automatically.
 
-- Training data: `id`, `eodhd_id`, `date`, 80 features (`feature_{n}_lag{0,5,10,15}`),
-  targets `target_10d`, `target_30d`.
-- Submission format: `id`, `pred_10d`, `pred_30d` — floats in [0, 1], min 80 assets.
-- New inference data daily ~14:00 UTC; submission window closes ~18:00 UTC; 5 slots/day.
-- Scoring: symmetric NDCG@40 + Spearman, plus "unique" variants vs the meta-model.
-  Composite score needs ≥10 submissions.
+## How the model works, in one paragraph
+
+Every asset, every day, gets 180 numbers describing where it stands
+*relative to its peers* (all pre-computed by CrowdCent — no feature
+engineering needed). The model learns which of those patterns historically
+preceded outperformance, scores today's 170 assets, and ranks them 0 to 1.
+That ranking is the submission.
+
+New here? Read `AGENTS.md` — it explains the project in plain language.
