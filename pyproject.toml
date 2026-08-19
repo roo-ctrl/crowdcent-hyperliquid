@@ -1,0 +1,13 @@
+[project]
+name = "crowdcent-hyperliquid"
+version = "0.1.0"
+description = "CrowdCent Hyperliquid Ranking challenge — data pull, model, submission"
+requires-python = ">=3.11"
+dependencies = [
+    "crowdcent-challenge",
+    "polars",
+    "pandas",
+    "pyarrow",
+    "scikit-learn",
+    "python-dotenv",
+]
