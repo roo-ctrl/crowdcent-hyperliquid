@@ -1,0 +1,442 @@
+<title>The NDCG@40 Staircase</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #f5f7fa;
+    --surface: #ffffff;
+    --ink: #111721;
+    --ink-2: #4f5a68;
+    --ink-3: #7c8794;
+    --hair: #dde3ea;
+    --accent: #2a78d6;
+    --accent-soft: #dbe8f9;
+    --mute: #b9c3cf;
+    --mute-soft: #e9edf1;
+    --card-shadow: 0 1px 2px rgba(17,23,33,.05), 0 8px 24px -12px rgba(17,23,33,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #13161b;
+      --surface: #1b1f26;
+      --ink: #eef1f5;
+      --ink-2: #aab3be;
+      --ink-3: #7d8792;
+      --hair: #2b323b;
+      --accent: #3987e5;
+      --accent-soft: #1c3253;
+      --mute: #4a5563;
+      --mute-soft: #262c34;
+      --card-shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #13161b;
+    --surface: #1b1f26;
+    --ink: #eef1f5;
+    --ink-2: #aab3be;
+    --ink-3: #7d8792;
+    --hair: #2b323b;
+    --accent: #3987e5;
+    --accent-soft: #1c3253;
+    --mute: #4a5563;
+    --mute-soft: #262c34;
+    --card-shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Newsreader", Georgia, "Times New Roman", serif;
+    font-size: 19px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 56px 24px 96px; }
+  .col { max-width: 640px; }
+
+  h1, h2, h3 {
+    font-family: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 { font-size: clamp(38px, 6vw, 58px); margin-bottom: 18px; }
+  h2 { font-size: 30px; margin: 72px 0 14px; }
+  h3 { font-size: 21px; margin: 32px 0 8px; }
+  p { margin: 0 0 18px; }
+  .lede { font-size: 24px; line-height: 1.4; color: var(--ink-2); margin-bottom: 8px; }
+  .eyebrow {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-size: 13px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 14px;
+  }
+  em { font-style: italic; }
+  strong { font-weight: 500; }
+  .num { font-family: "JetBrains Mono", "SF Mono", Menlo, monospace; font-size: .86em; font-variant-numeric: tabular-nums; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    padding: 20px 22px 16px;
+    margin: 26px 0 30px;
+    box-shadow: var(--card-shadow);
+  }
+  .card .cap {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-size: 15px; font-weight: 500; color: var(--ink-2); margin: 0 0 6px;
+  }
+  .card .sub { font-size: 15px; color: var(--ink-3); margin: 0 0 12px; font-family: "Bricolage Grotesque", sans-serif; }
+  .card svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .card .foot { font-size: 15px; color: var(--ink-3); margin: 10px 0 0; font-family: "Bricolage Grotesque", sans-serif; }
+
+  .key { display: flex; gap: 20px; flex-wrap: wrap; font-family: "Bricolage Grotesque", sans-serif; font-size: 14px; color: var(--ink-2); margin: 0 0 10px; }
+  .key span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; }
+  .key .a::before { background: var(--accent); }
+  .key .m::before { background: var(--mute); }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 14px 18px;
+    border-radius: 0 8px 8px 0;
+    margin: 22px 0 26px;
+    font-size: 18px;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .tscroll { overflow-x: auto; }
+  table {
+    border-collapse: collapse; width: 100%;
+    font-family: "Bricolage Grotesque", sans-serif; font-size: 15px;
+  }
+  th {
+    text-align: left; font-weight: 500; color: var(--ink-3);
+    font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 6px 10px; border-bottom: 1px solid var(--hair);
+  }
+  td { padding: 6px 10px; border-bottom: 1px solid var(--hair); font-variant-numeric: tabular-nums; }
+  td.n { font-family: "JetBrains Mono", monospace; font-size: 14px; }
+  td.r, th.r { text-align: right; }
+  tr.hi td { background: var(--accent-soft); }
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+  @media (max-width: 640px) { .twocol { grid-template-columns: 1fr; } }
+
+  .ex { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 18px 0 22px; }
+  .row {
+    display: grid; grid-template-columns: 58px 1fr auto auto auto; gap: 12px; align-items: center;
+    background: var(--surface); border: 1px solid var(--hair); border-radius: 8px; padding: 12px 16px;
+    font-family: "Bricolage Grotesque", sans-serif; font-size: 16px;
+  }
+  .row .slot { font-weight: 700; font-size: 22px; color: var(--accent); }
+  .row .coin { font-weight: 500; }
+  .row .k { color: var(--ink-3); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; display: block; }
+  .row .v { font-family: "JetBrains Mono", monospace; font-size: 15px; }
+  .row.total { grid-template-columns: 58px 1fr auto; background: var(--accent-soft); border-color: transparent; }
+  .row.total .v { font-weight: 500; font-size: 18px; }
+  @media (max-width: 560px) { .row { grid-template-columns: 48px 1fr; } .row > div:nth-child(n+3) { grid-column: 2; } }
+
+  .big {
+    font-family: "Bricolage Grotesque", sans-serif; font-weight: 700; font-size: 44px; letter-spacing: -.02em;
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 6px 0 22px;
+  }
+  .big small { font-size: 16px; font-weight: 500; color: var(--ink-2); letter-spacing: 0; }
+
+  .tip {
+    position: fixed; pointer-events: none; z-index: 10;
+    background: var(--ink); color: var(--ground);
+    font-family: "Bricolage Grotesque", sans-serif; font-size: 13px;
+    padding: 6px 9px; border-radius: 6px; white-space: nowrap;
+    opacity: 0; transition: opacity .12s;
+  }
+  @media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+  ul { padding-left: 22px; margin: 0 0 18px; }
+  li { margin-bottom: 8px; }
+</style>
+
+<div class="wrap">
+  <div class="col">
+    <div class="eyebrow">CrowdCent Hyperliquid challenge · scoring</div>
+    <h1>The NDCG@40 Staircase</h1>
+    <p class="lede">A plain-language walk through how a ranked list of 170 coins gets turned into one score — and why only the top 40 spots matter.</p>
+  </div>
+
+  <div class="col">
+    <h2>The one-sentence version</h2>
+    <p>NDCG@40 asks a single question: <strong>of the 40 coins you put at the top of your list, how good did they actually turn out to be — and did you put the best ones highest?</strong> Everything else on this page just spells out how that question gets a number.</p>
+    <p>The name is a mouthful (Normalized Discounted Cumulative Gain, at 40), but each piece is simple, and we'll take them one at a time: first the <em>staircase</em>, then the <em>weights</em>, then how they combine.</p>
+  </div>
+
+  <div class="col">
+    <h2>1 · Every coin stands on a step</h2>
+    <p>Ten days after you submit, CrowdCent looks at what every coin actually did. But instead of using the raw returns (+12%, −4%, and so on), it lines all 170 coins up from worst to best and puts each one on its own step of a staircase.</p>
+    <p>The staircase runs from just above <span class="num">0</span> to exactly <span class="num">1</span>. With 170 coins there are 170 steps, so each step is <span class="num">1 ÷ 170 = 0.0059</span> taller than the one below it. The best-performing coin stands on step <span class="num">1.000</span>, the second best on <span class="num">0.994</span>, the third on <span class="num">0.988</span>, all the way down to the worst coin on <span class="num">0.006</span>.</p>
+  </div>
+
+  <div class="card">
+    <p class="cap">The staircase — 170 coins, one step each</p>
+    <p class="sub">Coins in order of how they actually performed over the next 10 days. Height of the step = the coin's "relevance."</p>
+    <div class="key"><span class="a">Top 40 steps — these are the ones your list is judged on</span><span class="m">The other 130 steps</span></div>
+    <svg id="stairs" viewBox="0 0 860 340" role="img" aria-label="Staircase of 170 steps rising evenly from near 0 to 1, with the top 40 steps highlighted"></svg>
+    <p class="foot">Hover a step to see its exact height. Every step is the same size — the staircase never has a big jump or a flat spot.</p>
+  </div>
+
+  <div class="col">
+    <p>This is the key thing to notice: <strong>the shape of the staircase is identical every single day.</strong> Whether the whole crypto market soared or crashed, there is always exactly one coin on step 1.000, one on step 0.994, and so on. The only thing that changes from day to day is <em>which coin is standing on which step.</em></p>
+    <p>Your model's entire job is to guess that assignment ahead of time.</p>
+  </div>
+
+  <div class="col">
+    <h2>2 · How many coins fit in each band?</h2>
+    <p>Because the steps are evenly spaced, the same number of coins always land in each percentage band. Slice the staircase into ten bands of 10% each, and there are 17 coins in every band — never more, never fewer.</p>
+  </div>
+
+  <div class="card">
+    <p class="cap">Coins per 10% band</p>
+    <p class="sub">170 coins ÷ 10 bands = 17 coins in every band, every day.</p>
+    <div class="key"><span class="a">Bands where the top 40 live</span><span class="m">Bands that don't count toward NDCG@40</span></div>
+    <svg id="bands" viewBox="0 0 860 300" role="img" aria-label="Ten bars of equal height, 17 coins each; the top three bands are highlighted as where the top 40 coins fall"></svg>
+    <p class="foot">The top 40 coins are 40 ÷ 170 = 23.5% of the field, so they fill the top two bands (34 coins) plus 6 coins from the third.</p>
+  </div>
+
+  <div class="col">
+    <p>Slice finer, into 5% bands, and you get 8 or 9 coins per band (170 ÷ 20 = 8.5, so the bands alternate). Either way, the point is the same — <strong>there is a fixed number of seats at every level, and being "in the top 5%" means being one of about 8 coins.</strong></p>
+  </div>
+
+  <div class="col">
+    <h2>3 · The weights: the top spot is worth the most</h2>
+    <p>Now flip to <em>your</em> list. You submitted 170 coins in the order you thought they'd perform. The score only looks at your first 40, and it doesn't treat those 40 equally. Spot #1 counts the most, spot #2 a bit less, and so on down to spot #40, which counts the least.</p>
+    <p>The weight for each spot comes from a small formula: <strong>1 divided by log<sub>2</sub>(spot + 1)</strong>. You don't need to know what a log is to use the table — the "+1" is only there so that spot #1 doesn't divide by zero. What matters is the shape: the weight starts at exactly 1.0 and shrinks quickly at first, then slowly.</p>
+  </div>
+
+  <div class="card">
+    <p class="cap">How much each of the 40 spots counts</p>
+    <p class="sub">Weight = 1 ÷ log<sub>2</sub>(spot + 1). Spot #1 is worth about 5× spot #40.</p>
+    <svg id="weights" viewBox="0 0 860 260" role="img" aria-label="Forty bars decreasing from 1.0 at spot 1 to 0.19 at spot 40"></svg>
+  </div>
+
+  <div class="card">
+    <p class="cap">The full weight table, spots 1 – 40</p>
+    <div class="twocol" id="wtable"></div>
+    <p class="foot">Highlighted: the three spots used in the worked example below.</p>
+  </div>
+
+  <div class="col">
+    <p>Read it like this: a coin you put at #1 has its step height counted in full. A coin you put at #3 has its step height counted at half. A coin at #40 has its step height counted at less than a fifth. And a coin you put at #41 or lower? It's not counted at all.</p>
+  </div>
+
+  <div class="col">
+    <h2>4 · Putting them together</h2>
+    <p>Here's the whole calculation, in words:</p>
+    <div class="callout">
+      <p>Walk down your list from spot #1 to spot #40. At each spot, look up which step the coin <em>actually</em> ended up on, multiply that step height by the spot's weight, and add it to a running total.</p>
+    </div>
+    <p>That running total is the "cumulative gain." Two things make it big: putting coins that land on high steps into your top 40 at all, and putting the very highest of them in the top few spots where the weights are biggest.</p>
+
+    <h3>A tiny worked example: three coins</h3>
+    <p>To keep it small, imagine the score only looked at your top 3 instead of your top 40. On 24 July 2026 the real staircase had kPEPE on step <span class="num">0.953</span>, kSHIB on <span class="num">0.888</span>, and kBONK on <span class="num">0.212</span>. Say your model had ranked them like this:</p>
+  </div>
+
+  <div class="ex">
+    <div class="row"><div class="slot">#1</div><div class="coin">kSHIB</div><div><span class="k">actual step</span><span class="v">0.888</span></div><div><span class="k">× weight</span><span class="v">1.000</span></div><div><span class="k">= points</span><span class="v">0.888</span></div></div>
+    <div class="row"><div class="slot">#2</div><div class="coin">kPEPE</div><div><span class="k">actual step</span><span class="v">0.953</span></div><div><span class="k">× weight</span><span class="v">0.631</span></div><div><span class="k">= points</span><span class="v">0.601</span></div></div>
+    <div class="row"><div class="slot">#3</div><div class="coin">kBONK</div><div><span class="k">actual step</span><span class="v">0.212</span></div><div><span class="k">× weight</span><span class="v">0.500</span></div><div><span class="k">= points</span><span class="v">0.106</span></div></div>
+    <div class="row total"><div class="slot">Σ</div><div class="coin">Your total</div><div><span class="v">1.595</span></div></div>
+  </div>
+
+  <div class="col">
+    <p>Two things to notice in that table:</p>
+    <ul>
+      <li><strong>kBONK was a weak pick.</strong> It only stood on step 0.212, so even though spot #3 carries a decent weight, it contributed just 0.106 points. The step height is what made that spot cheap — not the weight.</li>
+      <li><strong>You had kPEPE and kSHIB the wrong way round.</strong> kPEPE was the better coin but sat in the #2 spot with the smaller weight.</li>
+    </ul>
+
+    <h3>The "normalized" part: compare to perfect</h3>
+    <p>A total of 1.595 means nothing on its own — is that good? To find out, calculate what a <em>perfect</em> ordering of those same three coins would have scored: kPEPE first, kSHIB second, kBONK third.</p>
+  </div>
+
+  <div class="ex">
+    <div class="row"><div class="slot">#1</div><div class="coin">kPEPE</div><div><span class="k">actual step</span><span class="v">0.953</span></div><div><span class="k">× weight</span><span class="v">1.000</span></div><div><span class="k">= points</span><span class="v">0.953</span></div></div>
+    <div class="row"><div class="slot">#2</div><div class="coin">kSHIB</div><div><span class="k">actual step</span><span class="v">0.888</span></div><div><span class="k">× weight</span><span class="v">0.631</span></div><div><span class="k">= points</span><span class="v">0.560</span></div></div>
+    <div class="row"><div class="slot">#3</div><div class="coin">kBONK</div><div><span class="k">actual step</span><span class="v">0.212</span></div><div><span class="k">× weight</span><span class="v">0.500</span></div><div><span class="k">= points</span><span class="v">0.106</span></div></div>
+    <div class="row total"><div class="slot">Σ</div><div class="coin">Perfect total</div><div><span class="v">1.619</span></div></div>
+  </div>
+
+  <div class="col">
+    <p>Your score is simply your total divided by the perfect total:</p>
+    <div class="big">1.595 ÷ 1.619 = 0.985 <small>you captured 98.5% of what was possible with those three coins</small></div>
+    <p>The 1.5% you lost is entirely the kPEPE/kSHIB swap. For the real competition the same thing happens with 40 spots instead of 3, and the "perfect" total is always the same number — about <span class="num">10.09</span> — because the top 40 steps of the staircase are the same every day.</p>
+  </div>
+
+  <div class="col">
+    <h2>5 · Three things this means for you</h2>
+    <h3>A random list doesn't score zero</h3>
+    <p>Shuffle the 170 coins at random and your top 40 will still contain some genuinely good coins by luck, each contributing its step height. That's why CrowdCent says a random submission scores about <span class="num">0.55</span>, not 0. Think of 0.55 as the floor, and judge a model by how far above it lands.</p>
+
+    <h3>Who's in your top 40 matters more than their exact order</h3>
+    <p>Putting a step-0.2 coin into your top 40 wastes a slot that could have held a step-0.9 coin — that costs far more than having two good coins in swapped positions. Get the <em>membership</em> right first; the ordering within the 40 is the fine-tuning.</p>
+
+    <h3>The middle of your list is invisible</h3>
+    <p>Whether you ranked a coin 80th or 110th makes no difference to NDCG@40. Only the top 40 spots are looked at. (CrowdCent also runs the same calculation on your <em>bottom</em> 40 — the coins you'd short — and averages the two, but that's the same idea flipped upside down.)</p>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function () {
+  const N = 170, K = 40;
+  const tip = document.getElementById('tip');
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(svgNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const showTip = (evt, text) => { tip.textContent = text; tip.style.opacity = 1; moveTip(evt); };
+  const moveTip = (evt) => { tip.style.left = (evt.clientX + 14) + 'px'; tip.style.top = (evt.clientY - 30) + 'px'; };
+  const hideTip = () => { tip.style.opacity = 0; };
+  const hover = (node, textFn) => {
+    node.addEventListener('mouseenter', e => showTip(e, textFn()));
+    node.addEventListener('mousemove', moveTip);
+    node.addEventListener('mouseleave', hideTip);
+  };
+  const cs = getComputedStyle(document.documentElement);
+  const tok = n => cs.getPropertyValue(n).trim();
+  const fontUI = '"Bricolage Grotesque", sans-serif';
+
+  /* ---------- Staircase ---------- */
+  (function () {
+    const svg = document.getElementById('stairs');
+    const W = 860, H = 340, L = 54, R = 20, T = 18, B = 44;
+    const pw = W - L - R, ph = H - T - B;
+    const x = i => L + (i / N) * pw;             // i = 0..N
+    const y = v => T + (1 - v) * ph;
+    // gridlines
+    [0, .25, .5, .75, 1].forEach(v => {
+      el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: tok('--hair'), 'stroke-width': 1 }, svg);
+      const t = el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+      t.textContent = v.toFixed(2);
+    });
+    // steps, drawn as bars from baseline so they read as a staircase
+    const bw = pw / N;
+    for (let i = 1; i <= N; i++) {
+      const v = i / N, top = i > N - K;
+      const r = el('rect', {
+        x: x(i - 1) + 0.4, width: Math.max(bw - 0.8, 1.2), y: y(v), height: y(0) - y(v),
+        fill: top ? tok('--accent') : tok('--mute'), opacity: top ? 1 : .85
+      }, svg);
+      const rankFromTop = N - i + 1;
+      hover(r, () => `Step ${v.toFixed(3)} · ${rankFromTop === 1 ? 'best coin' : rankFromTop + (rankFromTop <= 3 ? ['','st','nd','rd'][rankFromTop] : 'th') + ' best'}${top ? ' · counts' : ' · not scored'}`);
+    }
+    // bracket label for top 40
+    const bx0 = x(N - K), bx1 = x(N), by = y((N - K + 1) / N) - 16;
+    el('line', { x1: bx0, x2: bx1, y1: by, y2: by, stroke: tok('--ink-2'), 'stroke-width': 1 }, svg);
+    el('line', { x1: bx0, x2: bx0, y1: by, y2: by + 6, stroke: tok('--ink-2'), 'stroke-width': 1 }, svg);
+    el('line', { x1: bx1, x2: bx1, y1: by, y2: by + 6, stroke: tok('--ink-2'), 'stroke-width': 1 }, svg);
+    const lbl = el('text', { x: bx0 - 10, y: by + 4, 'text-anchor': 'end', 'font-size': 13, 'font-weight': 500, fill: tok('--ink'), 'font-family': fontUI }, svg);
+    lbl.textContent = 'top 40 coins: steps 0.771 to 1.000 →';
+    // annotation for step size
+    const a = el('text', { x: x(20), y: y(0.6), 'font-size': 13, fill: tok('--ink-2'), 'font-family': fontUI }, svg);
+    a.textContent = 'each step is 1 ÷ 170 = 0.0059 higher than the last';
+    // x axis labels
+    const xl = [[1, 'worst coin'], [85, 'middle'], [170, 'best coin']];
+    xl.forEach(([i, s]) => {
+      const t = el('text', { x: x(i - 0.5), y: H - 22, 'text-anchor': i === 1 ? 'start' : i === 170 ? 'end' : 'middle', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+      t.textContent = `#${i} ${s}`;
+    });
+    const xt = el('text', { x: L + pw / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+    xt.textContent = 'coins, ordered by what they actually did over the next 10 days';
+  })();
+
+  /* ---------- Bands ---------- */
+  (function () {
+    const svg = document.getElementById('bands');
+    const W = 860, H = 300, L = 54, R = 20, T = 30, B = 52;
+    const pw = W - L - R, ph = H - T - B;
+    const bands = 10, per = N / bands;             // 17
+    const y = v => T + (1 - v / 20) * ph;
+    [0, 5, 10, 15, 20].forEach(v => {
+      el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: tok('--hair'), 'stroke-width': 1 }, svg);
+      const t = el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+      t.textContent = v;
+    });
+    const slot = pw / bands, bw = Math.min(56, slot * .6);
+    for (let b = 0; b < bands; b++) {
+      const lo = b * 10, hi = lo + 10;
+      const inTop = b >= 7;                         // top 40 = 23.5% → bands 70-80, 80-90, 90-100
+      const cx = L + slot * (b + .5);
+      const h = y(0) - y(per);
+      const path = `M${cx - bw / 2},${y(0)} v${-(h - 4)} a4,4 0 0 1 4,-4 h${bw - 8} a4,4 0 0 1 4,4 v${h - 4} z`;
+      const r = el('path', { d: path, fill: inTop ? tok('--accent') : tok('--mute') }, svg);
+      const cnt = inTop ? (b === 7 ? '6 of these 17 are in the top 40' : 'all 17 are in the top 40') : 'none of these count';
+      hover(r, () => `${lo}–${hi}% band · 17 coins · ${cnt}`);
+      const v = el('text', { x: cx, y: y(per) - 8, 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 500, fill: tok('--ink'), 'font-family': fontUI }, svg);
+      v.textContent = '17';
+      const t = el('text', { x: cx, y: H - 30, 'text-anchor': 'middle', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+      t.textContent = `${lo}–${hi}%`;
+    }
+    const xt = el('text', { x: L + pw / 2, y: H - 8, 'text-anchor': 'middle', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+    xt.textContent = 'percentile band (worst coins on the left, best on the right)';
+    const yt = el('text', { x: L - 8, y: T - 12, 'text-anchor': 'end', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+    yt.textContent = 'coins';
+  })();
+
+  /* ---------- Weights ---------- */
+  const w = k => 1 / Math.log2(k + 1);
+  (function () {
+    const svg = document.getElementById('weights');
+    const W = 860, H = 260, L = 54, R = 20, T = 22, B = 44;
+    const pw = W - L - R, ph = H - T - B;
+    const y = v => T + (1 - v) * ph;
+    [0, .25, .5, .75, 1].forEach(v => {
+      el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: tok('--hair'), 'stroke-width': 1 }, svg);
+      const t = el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+      t.textContent = v.toFixed(2);
+    });
+    const slot = pw / K, bw = Math.min(14, slot * .62);
+    for (let k = 1; k <= K; k++) {
+      const v = w(k), cx = L + slot * (k - .5), h = y(0) - y(v);
+      const rad = Math.min(4, h / 2);
+      const path = `M${cx - bw / 2},${y(0)} v${-(h - rad)} a${rad},${rad} 0 0 1 ${rad},-${rad} h${bw - 2 * rad} a${rad},${rad} 0 0 1 ${rad},${rad} v${h - rad} z`;
+      const r = el('path', { d: path, fill: tok('--accent') }, svg);
+      hover(r, () => `Spot #${k} · weight ${v.toFixed(3)}`);
+      if ([1, 2, 3, 10, 20, 40].includes(k)) {
+        const t = el('text', { x: cx, y: y(v) - 7, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 500, fill: tok('--ink'), 'font-family': fontUI }, svg);
+        t.textContent = v.toFixed(2);
+      }
+      if ([1, 5, 10, 15, 20, 25, 30, 35, 40].includes(k)) {
+        const t = el('text', { x: cx, y: H - 22, 'text-anchor': 'middle', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+        t.textContent = '#' + k;
+      }
+    }
+    const xt = el('text', { x: L + pw / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': 12, fill: tok('--ink-3'), 'font-family': fontUI }, svg);
+    xt.textContent = 'position on your list';
+  })();
+
+  /* ---------- Weight table ---------- */
+  (function () {
+    const host = document.getElementById('wtable');
+    const mk = (from, to) => {
+      const wrap = document.createElement('div'); wrap.className = 'tscroll';
+      let h = '<table><thead><tr><th>Spot</th><th class="r">spot + 1</th><th class="r">log<sub>2</sub>(spot + 1)</th><th class="r">Weight</th></tr></thead><tbody>';
+      for (let k = from; k <= to; k++) {
+        const lg = Math.log2(k + 1);
+        h += `<tr${k <= 3 ? ' class="hi"' : ''}><td class="n">#${k}</td><td class="n r">${k + 1}</td><td class="n r">${lg.toFixed(3)}</td><td class="n r">${(1 / lg).toFixed(3)}</td></tr>`;
+      }
+      wrap.innerHTML = h + '</tbody></table>';
+      return wrap;
+    };
+    host.appendChild(mk(1, 20));
+    host.appendChild(mk(21, 40));
+  })();
+})();
+</script>
