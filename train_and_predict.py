@@ -56,6 +56,6 @@ for target in ["target_10d", "target_30d"]: # extract the target variables 10d a
     preds[horizon] = pl.Series(raw).rank() / len(raw)  # rank-normalize to (0, 1]
 
 out = pl.DataFrame(preds)
-out.write_parquet(OUT_DIR / "predictions.parquet")
-print(f"\nWrote {OUT_DIR / 'predictions.parquet'} ({out.height} assets)")
+out.write_parquet(OUT_DIR / "predictions_2.parquet")
+print(f"\nWrote {OUT_DIR / 'predictions_2.parquet'} ({out.height} assets)")
 print(out.head())
