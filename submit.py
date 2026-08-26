@@ -21,5 +21,5 @@ slot = int(sys.argv[1]) if len(sys.argv) > 1 else 1
 file_path = sys.argv[2] if len(sys.argv) > 2 else "predictions/model_1.parquet"
 
 client = ChallengeClient(challenge_slug="hyperliquid-ranking")
-result = client.submit_predictions(file_path=file_path, slot=slot)
+result = client.submit_predictions(file_path=file_path, slot=1)
 print(result)

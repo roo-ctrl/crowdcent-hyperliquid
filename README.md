@@ -10,7 +10,7 @@ and submits predictions — in three commands.
 1. Install [uv](https://docs.astral.sh/uv/), then run `uv sync` in this folder.
 2. Make an account at crowdcent.com, generate an API key on your profile page.
 3. Create a file called `.env` in this folder containing:
-   `CROWDCENT_API_KEY=your_key_here`
+  `CROWDCENT_API_KEY=your_key_here`
 
 ## The three commands
 
@@ -38,7 +38,7 @@ CrowdCent grades each submission with **NDCG@40** — a metric that only cares
 whether the 40 assets you ranked highest (and lowest) actually turned out to
 be the best (and worst). There's a plain-language walkthrough, with the
 170-coin "staircase", percentile bands, and the full weight table, in
-[`docs/ndcg40-explained.html`](docs/ndcg40-explained.html). To read it,
+`[docs/ndcg40-explained.html](docs/ndcg40-explained.html)`. To read it,
 open the file in a browser (GitHub shows the raw HTML source, not the page).
 
 New here? Read `AGENTS.md` — it explains the project in plain language.
