@@ -1,0 +1,15 @@
+[project]
+name = "algochains-marketplace-crowdcent"
+version = "0.1.0"
+description = "CrowdCent Hyperliquid ranking -> top-40 long portfolio -> AlgoChains signals, every 10 days"
+requires-python = ">=3.11"
+dependencies = [
+    "crowdcent-challenge",
+    "polars",
+    "pandas",
+    "pyarrow",
+    "scikit-learn",
+    "scipy",
+    "python-dotenv",
+    "requests",
+]

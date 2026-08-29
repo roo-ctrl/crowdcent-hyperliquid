@@ -3,6 +3,7 @@
 __pycache__/
 data/
 predictions/
+state/
 *.parquet
 .DS_Store
 predictions.csv

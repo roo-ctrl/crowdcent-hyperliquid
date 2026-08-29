@@ -1,0 +1,12 @@
+services:
+  crowdcent:
+    build: .
+    container_name: algochains_crowdcent_bot
+    env_file:
+      - .env                       # the .env in THIS folder
+    volumes:
+      - ./data:/data               # downloaded parquet (~120 MB), refreshed every run
+      - ./predictions:/predictions # ensemble_<date>.parquet, portfolio_<date>.json
+      - ./state:/state             # last_run.txt + positions.json — survive restarts
+    restart: unless-stopped
+    # RAM: HistGradientBoosting on ~200k x 180 needs ~1-2 GB; fine on a 4 GB Linode.
