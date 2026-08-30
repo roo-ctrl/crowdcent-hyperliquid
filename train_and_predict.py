@@ -38,7 +38,10 @@ for target in ["target_10d", "target_30d"]: # extract the target variables 10d a
         max_iter=500,
         learning_rate=0.02,
         max_leaf_nodes=31,
-        l2_regularization=1.0,
+        l2_regularization=2.0,
+        early_stopping=True,
+        n_iter_no_change=20,
+        validation_fraction=0.1,
         random_state=42,
     )
     model.fit(tr_t[feature_cols].to_numpy(), tr_t[target].to_numpy()) # fit the model on training, converted to numpy arrays
@@ -56,6 +59,6 @@ for target in ["target_10d", "target_30d"]: # extract the target variables 10d a
     preds[horizon] = pl.Series(raw).rank() / len(raw)  # rank-normalize to (0, 1]
 
 out = pl.DataFrame(preds)
-out.write_parquet(OUT_DIR / "predictions.parquet")
-print(f"\nWrote {OUT_DIR / 'predictions.parquet'} ({out.height} assets)")
+out.write_parquet(OUT_DIR / "model_1.parquet")
+print(f"\nWrote {OUT_DIR / 'model_1.parquet'} ({out.height} assets)")
 print(out.head())
