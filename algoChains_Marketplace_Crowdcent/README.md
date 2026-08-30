@@ -20,7 +20,7 @@ state/           last_run.txt, positions.json (what we hold between runs)
 
 1. `cp .env.example .env` and fill in:
    - `CROWDCENT_API_KEY` — crowdcent.com → profile → Generate New Key
-   - `ALGOCHAINS_API_KEY` + `BOT_NAME` — the bot's marketplace listing name, exactly
+   - `ALGOCHAINS_API_KEY` + `BOT_NAME` — must match the marketplace listing exactly (`CrowdCent-Model-Roo`)
    - `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` — used to filter the top-40 to pairs Alpaca can trade (and, if `EXECUTE_DIRECT=1`, to mirror the trades on your own account)
 2. Leave the switches at 0 for the first run: `SUBMIT=0`, `SEND_SIGNALS=0`, `EXECUTE_DIRECT=0`.
 
@@ -35,6 +35,16 @@ docker compose logs -f
 ```
 
 Local (no Docker): `uv sync && uv run pipeline.py --dry-run`.
+
+Welcome a subscriber who was only seeded (no signals sent) on first watcher start.
+The compose entrypoint is already `python -u welcome_watcher.py`, so pass flags only:
+
+```bash
+docker compose run --rm welcome_watcher --welcome-existing --dry-run
+docker compose run --rm welcome_watcher --welcome-existing ronaldo
+```
+
+`client_order_id` values include the listing slug (`ac-crowdcent-model-roo-…`) so AlgoChains Portfolio can attribute fills.
 
 ## What is required to send a signal to AlgoChains
 

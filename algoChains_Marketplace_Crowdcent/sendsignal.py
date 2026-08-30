@@ -20,6 +20,7 @@ Both functions are best-effort and never raise into the pipeline.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import uuid
 from datetime import datetime, timezone
@@ -28,7 +29,41 @@ import requests
 
 SIGNAL_URL = os.getenv("SIGNAL_URL", "https://signals-prod.algochains.ai/signals/signal/")
 ALGOCHAINS_API_KEY = os.getenv("ALGOCHAINS_API_KEY", "").strip()
-BOT_NAME = os.getenv("BOT_NAME", "CrowdCent_Hyperliquid_Top40")
+BOT_NAME = os.getenv("BOT_NAME", "CrowdCent-Model-Roo")
+ALPACA_CLIENT_ORDER_ID_MAX = 48
+
+
+def listing_slug(bot_name: str | None = None) -> str:
+    """Compact listing token so Django can match client_order_id to strategy_title."""
+    slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in (bot_name or BOT_NAME or ""))
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return slug.strip("-")
+
+
+def attributed_client_order_id(kind: str, *parts: str, bot_name: str | None = None) -> str:
+    """Build an Alpaca-safe client_order_id that contains the listing slug.
+
+    Format: ac-{listing-slug}-{kind}-{tail}  (max 48 chars)
+    Django attribution looks for the listing title or this slug inside the id.
+    """
+    slug = listing_slug(bot_name)
+    kind_token = "".join(ch.lower() for ch in (kind or "x") if ch.isalnum()) or "x"
+    cleaned: list[str] = []
+    for part in parts:
+        token = "".join(ch for ch in str(part).replace("/", "") if ch.isalnum() or ch in "-_")
+        if token:
+            cleaned.append(token[:16])
+    tail = "-".join(cleaned)
+    raw = f"ac-{slug}-{kind_token}-{tail}" if tail else f"ac-{slug}-{kind_token}"
+    if len(raw) <= ALPACA_CLIENT_ORDER_ID_MAX:
+        return raw
+    prefix = f"ac-{slug}-{kind_token}-"
+    budget = ALPACA_CLIENT_ORDER_ID_MAX - len(prefix)
+    if budget < 4:
+        return raw[:ALPACA_CLIENT_ORDER_ID_MAX]
+    digest = hashlib.sha1(tail.encode("utf-8")).hexdigest()[: max(4, min(8, budget))]
+    return (prefix + digest)[:ALPACA_CLIENT_ORDER_ID_MAX]
 
 ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "").strip()
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "").strip()
@@ -61,7 +96,7 @@ def send_signal(
         "symbol": symbol,
         "side": side.upper(),
         "qty": float(qty),
-        "client_order_id": client_order_id or uuid.uuid4().hex,
+        "client_order_id": client_order_id or attributed_client_order_id("x", uuid.uuid4().hex[:8]),
     }
     if target_usernames:
         payload["target_usernames"] = list(target_usernames)

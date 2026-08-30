@@ -15,8 +15,11 @@ Sanity check without a real subscriber:
     (prints what would be sent; if the main account is still flat it shows the
      positions from predictions/portfolio_latest.json that the main account WILL hold)
 
+Re-welcome a subscriber who was seeded on first start (does not wipe known_subscribers.txt):
+    python welcome_watcher.py --welcome-existing [username] [--dry-run]
+
 State: /state/known_subscribers.txt (first run seeds silently, so existing
-subscribers are never re-welcomed on a restart).
+subscribers are never re-welcomed on a restart unless --welcome-existing).
 
 Environment: REGISTRY_DB_URL, ALGOCHAINS_API_KEY, BOT_NAME, ALPACA_API_KEY /
 ALPACA_SECRET_KEY, WELCOME_ACCOUNT_USD (50000), WATCH_POLL_SECONDS (60).
@@ -35,7 +38,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from sendsignal import ALPACA_API_KEY, ALPACA_BASE_URL, ALPACA_SECRET_KEY, BOT_NAME, send_signal  # noqa: E402
+from sendsignal import (  # noqa: E402
+    ALPACA_API_KEY,
+    ALPACA_BASE_URL,
+    ALPACA_SECRET_KEY,
+    BOT_NAME,
+    attributed_client_order_id,
+    send_signal,
+)
+from welcome_logic import SUBSCRIBER_SQL, decide_welcome_targets  # noqa: E402
 
 DB_URL = os.getenv("REGISTRY_DB_URL", "").strip()
 WELCOME_MODE = os.getenv("WELCOME_MODE", "exact").strip().lower()
@@ -55,11 +66,7 @@ def subscribers() -> set[str]:
     conn = psycopg2.connect(DB_URL, connect_timeout=10)
     try:
         with conn, conn.cursor() as cur:
-            cur.execute(
-                "SELECT username FROM public.user_subscriptions "
-                "WHERE bot_name = %s AND api_key IS NOT NULL AND api_secret IS NOT NULL",
-                [BOT_NAME],
-            )
+            cur.execute(SUBSCRIBER_SQL, [BOT_NAME])
             return {r[0] for r in cur.fetchall()}
     finally:
         conn.close()
@@ -105,36 +112,78 @@ def welcome(user: str, *, dry_run: bool = False, simulate: bool = False) -> list
         if qty <= 0:
             continue
         log(f"  -> {user}: BUY {qty:<14} {p['symbol']:<10} (~${p['market_value'] * scale:,.0f})")
-        res = send_signal("BUY", p["symbol"], qty, client_order_id=f"welcome-{user}-{p['symbol'].replace('/', '')}"[:64],
-                          target_usernames=[user], dry_run=dry_run)
+        res = send_signal(
+            "BUY",
+            p["symbol"],
+            qty,
+            client_order_id=attributed_client_order_id("w", user, p["symbol"]),
+            target_usernames=[user],
+            dry_run=dry_run,
+        )
         sent.append(res)
     log(f"welcome for {user} complete: {len(sent)} signal(s){' (dry-run)' if dry_run else ''}")
     return sent
 
 
-def main() -> None:
+def persist_known(current: set[str]) -> None:
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    STATE.write_text("\n".join(sorted(current)))
+
+
+def run_once(
+    *,
+    first_run: bool,
+    known: set[str],
+    welcome_existing: bool = False,
+    only_user: str | None = None,
+    dry_run: bool = False,
+) -> set[str]:
+    """One poll cycle. Returns the updated known set. Does not wipe known on welcome-existing."""
+    current = subscribers()
+    targets, reason = decide_welcome_targets(
+        known,
+        current,
+        first_run=first_run,
+        welcome_existing=welcome_existing,
+        only_user=only_user,
+    )
+    if reason == "seed" and (current - known):
+        log(f"seeded existing subscriber(s): {', '.join(sorted(current - known))}")
+    for user in sorted(targets):
+        welcome(user, dry_run=dry_run)
+    if current != known:
+        gone = known - current
+        if gone:
+            log(f"deactivated (re-welcomed on return): {', '.join(sorted(gone))}")
+        persist_known(current)
+        return current
+    return known
+
+
+def main(*, welcome_existing: bool = False, only_user: str | None = None, dry_run: bool = False) -> None:
     if not (DB_URL and ALPACA_API_KEY and ALPACA_SECRET_KEY):
         log("REGISTRY_DB_URL and Alpaca keys are required — exiting")
         return
     STATE.parent.mkdir(parents=True, exist_ok=True)
     first_run = not STATE.exists()
     known = set(STATE.read_text().split()) if STATE.exists() else set()
-    log(f"up — bot={BOT_NAME} poll={POLL}s known={len(known)}{' (first run: seeding silently)' if first_run else ''}")
+    log(
+        f"up — bot={BOT_NAME} poll={POLL}s known={len(known)}"
+        f"{' (first run: seeding silently)' if first_run and not welcome_existing else ''}"
+    )
+    if welcome_existing or only_user:
+        known = run_once(
+            first_run=False,
+            known=known,
+            welcome_existing=True,
+            only_user=only_user,
+            dry_run=dry_run,
+        )
+        log("welcome-existing pass complete; entering poll loop")
+        first_run = False
     while True:
         try:
-            current = subscribers()
-            new = current - known
-            if new and not first_run:
-                for user in sorted(new):
-                    welcome(user)
-            elif new:
-                log(f"seeded existing subscriber(s): {', '.join(sorted(new))}")
-            if current != known:
-                gone = known - current
-                if gone:
-                    log(f"deactivated (re-welcomed on return): {', '.join(sorted(gone))}")
-                known = current
-                STATE.write_text("\n".join(sorted(known)))
+            known = run_once(first_run=first_run, known=known, dry_run=dry_run)
             first_run = False
         except Exception as exc:  # noqa: BLE001
             log(f"cycle error: {type(exc).__name__}: {exc}")
@@ -144,8 +193,16 @@ def main() -> None:
 if __name__ == "__main__":
     import sys
 
-    if "--simulate-new" in sys.argv:
-        user = sys.argv[sys.argv.index("--simulate-new") + 1]
-        welcome(user, dry_run="--dry-run" in sys.argv, simulate=True)
+    argv = sys.argv[1:]
+    dry = "--dry-run" in argv
+    if "--simulate-new" in argv:
+        user = argv[argv.index("--simulate-new") + 1]
+        welcome(user, dry_run=dry, simulate=True)
+    elif "--welcome-existing" in argv:
+        idx = argv.index("--welcome-existing")
+        only = None
+        if idx + 1 < len(argv) and not argv[idx + 1].startswith("-"):
+            only = argv[idx + 1]
+        main(welcome_existing=True, only_user=only, dry_run=dry)
     else:
-        main()
+        main(dry_run=dry)
