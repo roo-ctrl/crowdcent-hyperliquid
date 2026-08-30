@@ -60,7 +60,7 @@ def due(now: datetime, last: date | None) -> bool:
     hh, mm = (int(x) for x in RUN_AT_UTC.split(":"))
     past_time_of_day = (now.hour, now.minute) >= (hh, mm)
     if last is None:
-        return RUN_ON_START or past_time_of_day
+        return RUN_ON_START
     return (now.date() - last).days >= RUN_EVERY_DAYS and past_time_of_day
 
 
@@ -68,6 +68,10 @@ def main() -> int:
     if RUN_ONCE:
         return 0 if run_pipeline(sys.argv[1:]) else 1
 
+    if last_run() is None and not RUN_ON_START:
+        # first start with no history: today is the baseline, first run in RUN_EVERY_DAYS days
+        mark_run(datetime.now(timezone.utc).date())
+        log(f"no run history — baseline set to today; first run in {RUN_EVERY_DAYS} days (set RUN_ON_START=1 to run now)")
     log(f"every {RUN_EVERY_DAYS} days at {RUN_AT_UTC} UTC · last run: {last_run()}")
     while True:
         now = datetime.now(timezone.utc)

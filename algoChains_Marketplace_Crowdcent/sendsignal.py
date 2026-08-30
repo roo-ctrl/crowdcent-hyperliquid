@@ -42,8 +42,20 @@ def log(msg: str) -> None:
     print(f"[{datetime.now(timezone.utc):%Y-%m-%d %H:%M:%S}Z] signal: {msg}", flush=True)
 
 
-def send_signal(side: str, symbol: str, qty: float, *, client_order_id: str | None = None, dry_run: bool = False) -> dict:
-    """POST one signal to AlgoChains. Returns the response dict (or a dry-run echo)."""
+def send_signal(
+    side: str,
+    symbol: str,
+    qty: float,
+    *,
+    client_order_id: str | None = None,
+    target_usernames: list[str] | None = None,
+    dry_run: bool = False,
+) -> dict:
+    """POST one signal to AlgoChains. Returns the response dict (or a dry-run echo).
+
+    target_usernames: send to ONLY these subscribers (welcome flow). The fan-out
+    executes for them alone and does not mirror the signal to AlgoChains Paper.
+    """
     payload = {
         "strategy_name": BOT_NAME,
         "symbol": symbol,
@@ -51,13 +63,16 @@ def send_signal(side: str, symbol: str, qty: float, *, client_order_id: str | No
         "qty": float(qty),
         "client_order_id": client_order_id or uuid.uuid4().hex,
     }
+    if target_usernames:
+        payload["target_usernames"] = list(target_usernames)
     if dry_run or not ALGOCHAINS_API_KEY:
         log(f"[dry-run] would POST {payload}")
         return {"dry_run": True, **payload}
     try:
         r = requests.post(SIGNAL_URL, json=payload, headers={"X-API-Key": ALGOCHAINS_API_KEY}, timeout=(5, 20))
         body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"text": r.text[:200]}
-        log(f"{side} {qty} {symbol}: HTTP {r.status_code} dispatched={body.get('dispatched')} paper={body.get('paper_bridge')}")
+        who = f" -> {','.join(target_usernames)}" if target_usernames else ""
+        log(f"{side} {qty} {symbol}{who}: HTTP {r.status_code} dispatched={body.get('dispatched')} paper={body.get('paper_bridge')}")
         return {"status_code": r.status_code, **body}
     except Exception as exc:  # noqa: BLE001 — one bad symbol must not stop the batch
         log(f"{side} {qty} {symbol}: FAILED {type(exc).__name__}: {exc}")

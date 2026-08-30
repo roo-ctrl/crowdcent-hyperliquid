@@ -1,16 +1,28 @@
 """Step 4 — turn the ranking into a portfolio.
 
-Take the TOP_N highest-ranked assets (by RANK_HORIZON, default pred_10d to
-match the 10-day rerun), keep only the ones Alpaca can actually trade as
-crypto pairs, and spread INVEST_PCT of PORTFOLIO_USD across them equally.
+Walk down the CrowdCent ranking (by RANK_HORIZON, default pred_10d) and keep
+the assets Alpaca can actually trade as crypto pairs, up to TOP_N of them.
+CrowdCent ranks ~170 tokens and Alpaca lists only a few dozen, so N is
+"however many tradable names we found", not a fixed 40.
 
-    $100,000 x 90% = $90,000 / 40 names = $2,250 per name
-    qty = $2,250 / last price   (fractional, 6 dp)
+Sizing (WEIGHTING=log, default): the ranking is the signal, so position size
+decays logarithmically with rank — rank 1 gets the most, the last tradable
+name gets substantially less:
 
-Output: a list of {symbol, alpaca_symbol, rank, price, notional_usd, qty}.
+    w_i = ln((N + 1) / i)      i = 1..N, normalised to sum to 1
+    notional_i = PORTFOLIO_USD x INVEST_PCT x w_i
+    qty_i = notional_i / last price   (fractional, 6 dp)
+
+    e.g. N = 20, $90,000 invested: #1 ~ $8,700 · #10 ~ $2,100 · #20 ~ $140
+
+WEIGHTING=equal gives the old flat split. Names whose slice would be below
+MIN_NOTIONAL_USD are dropped so we never send dust orders.
+
+Output: a list of {symbol, alpaca_symbol, rank, price, weight, notional_usd, qty}.
 """
 from __future__ import annotations
 
+import math
 import os
 from datetime import datetime, timezone
 
@@ -28,9 +40,20 @@ def settings() -> dict:
     return {
         "top_n": int(os.getenv("TOP_N", "40")),
         "horizon": os.getenv("RANK_HORIZON", "pred_10d"),
-        "portfolio_usd": float(os.getenv("PORTFOLIO_USD", "100000")),
+        "portfolio_usd": os.getenv("PORTFOLIO_USD", "auto").strip().lower(),  # "auto" or a number
         "invest_pct": float(os.getenv("INVEST_PCT", "0.90")),
+        "weighting": os.getenv("WEIGHTING", "log").strip().lower(),
+        "min_notional": float(os.getenv("MIN_NOTIONAL_USD", "10")),
     }
+
+
+def weights(n: int, scheme: str = "log") -> list[float]:
+    """Position weights for ranks 1..n, summing to 1."""
+    if scheme == "equal" or n == 1:
+        return [1.0 / n] * n
+    raw = [math.log((n + 1) / i) for i in range(1, n + 1)]  # log decay: big at #1, tiny at #n
+    total = sum(raw)
+    return [w / total for w in raw]
 
 
 def alpaca_symbol(crowdcent_id: str) -> str:
@@ -63,8 +86,25 @@ def last_prices(symbols: list[str]) -> dict[str, float]:
     return prices
 
 
-def build_portfolio(predictions: pl.DataFrame, tradable: set[str] | None) -> list[dict]:
+def main_equity(api_key: str, api_secret: str, base_url: str) -> float:
+    """Live equity of the main Alpaca account (PORTFOLIO_USD=auto)."""
+    r = requests.get(
+        f"{base_url}/v2/account",
+        headers={"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": api_secret},
+        timeout=(5, 20),
+    )
+    r.raise_for_status()
+    return float(r.json()["equity"])
+
+
+def build_portfolio(predictions: pl.DataFrame, tradable: set[str] | None, *, portfolio_usd: float | None = None) -> list[dict]:
     cfg = settings()
+    if portfolio_usd is not None:
+        cfg["portfolio_usd"] = float(portfolio_usd)
+    elif cfg["portfolio_usd"] == "auto":
+        raise RuntimeError("PORTFOLIO_USD=auto needs Alpaca keys (main account equity)")
+    else:
+        cfg["portfolio_usd"] = float(cfg["portfolio_usd"])
     ranked = predictions.sort(cfg["horizon"], descending=True)
 
     candidates = []
@@ -81,20 +121,31 @@ def build_portfolio(predictions: pl.DataFrame, tradable: set[str] | None) -> lis
         log(f"only {len(candidates)} of top {cfg['top_n']} are tradable on Alpaca — allocating across those")
 
     prices = last_prices([c["alpaca_symbol"] for c in candidates])
-    candidates = [c for c in candidates if c["alpaca_symbol"] in prices] or candidates
-    per_name = cfg["portfolio_usd"] * cfg["invest_pct"] / len(candidates)
+    candidates = [c for c in candidates if prices.get(c["alpaca_symbol"])]
+    if not candidates:
+        raise RuntimeError("no prices for any tradable asset")
+    invest = cfg["portfolio_usd"] * cfg["invest_pct"]
+    ws = weights(len(candidates), cfg["weighting"])
 
     portfolio = []
-    for c in candidates:
-        price = prices.get(c["alpaca_symbol"])
-        if not price:
-            log(f"no price for {c['alpaca_symbol']} — skipped")
+    for pos, (c, w) in enumerate(zip(candidates, ws), start=1):
+        notional = invest * w
+        if notional < cfg["min_notional"]:
+            log(f"#{pos} {c['alpaca_symbol']}: ${notional:,.2f} below MIN_NOTIONAL_USD — dropped")
             continue
-        portfolio.append({**c, "price": price, "notional_usd": round(per_name, 2), "qty": round(per_name / price, 6)})
+        price = prices[c["alpaca_symbol"]]
+        portfolio.append({
+            **c,
+            "position": pos,
+            "price": price,
+            "weight": round(w, 6),
+            "notional_usd": round(notional, 2),
+            "qty": round(notional / price, 6),
+        })
 
     log(
-        f"top {len(portfolio)} longs by {cfg['horizon']} · "
-        f"${cfg['portfolio_usd']:,.0f} x {cfg['invest_pct']:.0%} = ${cfg['portfolio_usd'] * cfg['invest_pct']:,.0f} · "
-        f"${per_name:,.2f} each"
+        f"{len(portfolio)} tradable longs by {cfg['horizon']} ({cfg['weighting']} weighting) · "
+        f"${cfg['portfolio_usd']:,.0f} x {cfg['invest_pct']:.0%} = ${invest:,.0f} · "
+        f"#1 ${portfolio[0]['notional_usd']:,.0f} … #{len(portfolio)} ${portfolio[-1]['notional_usd']:,.0f}"
     )
     return portfolio

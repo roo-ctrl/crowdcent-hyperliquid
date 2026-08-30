@@ -10,3 +10,13 @@ services:
       - ./state:/state             # last_run.txt + positions.json — survive restarts
     restart: unless-stopped
     # RAM: HistGradientBoosting on ~200k x 180 needs ~1-2 GB; fine on a 4 GB Linode.
+
+  welcome_watcher:
+    build: .
+    container_name: algochains_crowdcent_welcome
+    entrypoint: ["python", "-u", "welcome_watcher.py"]
+    env_file:
+      - .env
+    volumes:
+      - ./state:/state
+    restart: unless-stopped

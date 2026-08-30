@@ -3,7 +3,7 @@
     1. download the latest CrowdCent data              (data/)
     2. run it through the model — 4-model rank ensemble (modeling.py)
     3. save the ranking                                 (predictions/ensemble_<date>.parquet + _latest)
-    4. allocate: top-40 longs, 90% of $100,000          (allocate.py -> predictions/portfolio_<date>.json)
+    4. allocate: top-N tradable longs, log-decay sizing, 90% of the main account (allocate.py -> predictions/portfolio_<date>.json)
     5. send signals to AlgoChains for the rebalance     (sendsignal.py)
        - SELL whatever we held last run that dropped out of the top-40
        - BUY every new entrant
@@ -33,7 +33,7 @@ from dotenv import load_dotenv
 
 load_dotenv()  # the .env in THIS folder (or the container's env_file)
 
-from allocate import build_portfolio, tradable_crypto  # noqa: E402
+from allocate import build_portfolio, main_equity, tradable_crypto  # noqa: E402
 from modeling import train_ensemble  # noqa: E402
 from sendsignal import ALPACA_API_KEY, ALPACA_BASE_URL, ALPACA_SECRET_KEY, BOT_NAME, execute_direct, send_signal  # noqa: E402
 
@@ -146,16 +146,20 @@ def main(argv: list[str]) -> int:
     if do_submit:
         submit_to_crowdcent(dated)
 
-    tradable = None  # 4
+    tradable, portfolio_usd = None, None  # 4
     if ALPACA_API_KEY and ALPACA_SECRET_KEY:
         tradable = tradable_crypto(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL)
         log(f"{len(tradable)} crypto pairs tradable on Alpaca")
+        if os.getenv("PORTFOLIO_USD", "auto").strip().lower() == "auto":
+            portfolio_usd = main_equity(ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL)
+            log(f"PORTFOLIO_USD=auto -> main Alpaca equity ${portfolio_usd:,.2f}")
     else:
         log("no Alpaca keys — cannot filter to tradable pairs; using the raw top-N")
-    portfolio = build_portfolio(sub, tradable)
+    portfolio = build_portfolio(sub, tradable, portfolio_usd=portfolio_usd)
     (OUT_DIR / f"portfolio_{day}.json").write_text(json.dumps(portfolio, indent=2))
     (OUT_DIR / "portfolio_latest.json").write_text(json.dumps(portfolio, indent=2))
-    print(pl.DataFrame(portfolio).select("rank", "symbol", "alpaca_symbol", "price", "notional_usd", "qty"), flush=True)
+    with pl.Config(tbl_rows=200, tbl_width_chars=140):
+        print(pl.DataFrame(portfolio).select("position", "rank", "symbol", "alpaca_symbol", "price", "weight", "notional_usd", "qty"), flush=True)
 
     # 5 — always compute the rebalance; only send when SEND_SIGNALS=1 (or print in dry-run)
     positions = rebalance(portfolio, dry_run=(dry_run or not do_signals), direct=do_direct, day=day)

@@ -16,7 +16,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # code layer
-COPY pipeline.py modeling.py allocate.py sendsignal.py scheduler.py ./
+COPY pipeline.py modeling.py allocate.py sendsignal.py scheduler.py welcome_watcher.py ./
 
 VOLUME ["/data", "/predictions", "/state"]
 # ENTRYPOINT (not CMD) so `docker compose run crowdcent --dry-run` appends args
