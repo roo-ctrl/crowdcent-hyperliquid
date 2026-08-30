@@ -18,8 +18,8 @@ from crowdcent_challenge import ChallengeClient
 load_dotenv()
 
 slot = int(sys.argv[2]) if len(sys.argv) > 1 else 1
-file_path = sys.argv[2] if len(sys.argv) > 2 else "predictions/predictions_2.parquet"
+file_path = sys.argv[2] if len(sys.argv) > 2 else "predictions/model_2_1.parquet"
 
 client = ChallengeClient(challenge_slug="hyperliquid-ranking")
-result = client.submit_predictions(file_path=file_path, slot=1)
+result = client.submit_predictions(file_path=file_path, slot=3)
 print(result)
