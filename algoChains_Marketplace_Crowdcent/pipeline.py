@@ -35,7 +35,15 @@ load_dotenv()  # the .env in THIS folder (or the container's env_file)
 
 from allocate import build_portfolio, main_equity, tradable_crypto  # noqa: E402
 from modeling import train_ensemble  # noqa: E402
-from sendsignal import ALPACA_API_KEY, ALPACA_BASE_URL, ALPACA_SECRET_KEY, BOT_NAME, execute_direct, send_signal  # noqa: E402
+from sendsignal import (  # noqa: E402
+    ALPACA_API_KEY,
+    ALPACA_BASE_URL,
+    ALPACA_SECRET_KEY,
+    BOT_NAME,
+    attributed_client_order_id,
+    execute_direct,
+    send_signal,
+)
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
 OUT_DIR = Path(os.getenv("OUT_DIR", "predictions"))
@@ -111,11 +119,11 @@ def rebalance(portfolio: list[dict], *, dry_run: bool, direct: bool, day: str) -
     log(f"rebalance: sell {len(sells)} · buy {len(buys)} · keep {len(keeps)}")
 
     for sym, qty in sells.items():
-        send_signal("SELL", sym, qty, client_order_id=f"cc-{day}-sell-{sym.replace('/', '')}", dry_run=dry_run)
+        send_signal("SELL", sym, qty, client_order_id=attributed_client_order_id("s", day, sym), dry_run=dry_run)
         if direct:
             execute_direct("SELL", sym, qty, dry_run=dry_run)
     for sym, qty in buys.items():
-        send_signal("BUY", sym, qty, client_order_id=f"cc-{day}-buy-{sym.replace('/', '')}", dry_run=dry_run)
+        send_signal("BUY", sym, qty, client_order_id=attributed_client_order_id("b", day, sym), dry_run=dry_run)
         if direct:
             execute_direct("BUY", sym, qty, dry_run=dry_run)
 
